@@ -1,4 +1,14 @@
-from flask import Flask
+from flask import Flask, request, jsonify
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from models import Base, Puppy
+
+engine = create_engine('sqlite://puppies.db')
+Base.metadata.bind = engine
+
+DBSession = sessionmaker(bind=engine)
+session = DBSession()
+
 app = Flask(__name__) 
 # Create the appropriate app.route functions. Test and see if they work
 
@@ -12,7 +22,14 @@ def puppiesFunction():
   
   elif request.method == 'POST':
     # Call the method to make a new puppy
-    return makeANewPuppy()
+    print "Making a New puppy"
+
+    name = request.args.get('name', "")
+    description = request.args.get('description', '')
+    print name
+    print description
+    return makeANewPuppy(name, description)
+
 
 
 
@@ -21,34 +38,54 @@ def puppiesFunction():
 #Make another app.route() decorator here that takes in an integer named 'id' for when the client visits a URI like "/puppies/5"
 
 @app.route('/puppies/<int:id>', methods = ['GET', 'PUT', 'DELETE'])
+# Call the method to view a specific puppy
 def puppiesFunctionId(id):
-  if request.method == 'GET:
-    # Call the method to get a specific puppy based on their id
+  if request.method == 'GET':
     return getPuppy(id)
 
+  # Call the method to edit a specific puppy
   if request.method == 'PUT':
-    # Call the method to update a puppy
-    return updatePuppy(id)
+    name = request.args.get('name', "")
+    description = request.args.get('description', '')
+    return updatePuppy(id, name, description)
 
+  # Call the method to remove puppy
   elif request.method == 'DELETE':
-    # Call the method to remove a puppy
     return deletePuppy(id)
 
 def getAllPuppies():
-  return "Get All the puppies!"
-
-def makeANewPuppy():
-  return "Creating a New Puppy!"
+  puppies = session.query(Puppy).all()
+  return jsonify(Puppies=[i.serialize for i in puppies])
 
 def getPuppy(id):
-  return "Getting Puppy with id %s" % id
+  puppy = session.query(Puppy).filter_by(id = id).one()
+  return jsonify(puppy=puppy.serialize)
 
-def updatePuppy(id):
-  return "Updating a Puppy with id %s" % id
+def makeANewPuppy(name,description):
+  puppy = Puppy(name=name,description=description)
+  session.add(puppy)
+  session.commit()
+  return jsonify(Puppy=puppy.serialize)
+
+def updatePuppy(id,name,description):
+  puppy = session.query(Puppy).filter_by(id=id).one()
+  if not name:
+    puppy.name = name
+
+  if not description:
+    puppy.description = description
+
+  session.add(puppy)
+  session.commit()
+  return "Updated a Puppy with id %s" % id
+  
 
 def deletePuppy(id):
-  return "Removing Puppy with id %s" % id
-  
+  puppy = session.query(Puppy).filter_by(id = id).one()
+  session.delete(puppy)
+  session.commit()
+  return "Removed Puppy with id %s" % id
+
 if __name__ == '__main__':
-    app.debug = True
+    app.debug = False
     app.run(host='0.0.0.0', port=5000)	
